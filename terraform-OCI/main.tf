@@ -109,47 +109,47 @@ resource "oci_core_instance" "haproxy" {
   }
 }
 
-# resource "oci_core_instance" "nginx" {
-#   compartment_id = var.compartment_ocid
-#   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
-#   shape = "VM.Standard.E2.1.Micro"
-#   display_name = "nginx-server"
+resource "oci_core_instance" "nginx" {
+  compartment_id = var.compartment_ocid
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  shape = "VM.Standard.E2.1.Micro"
+  display_name = "nginx-server"
 
-#   create_vnic_details {
-#     subnet_id = oci_core_subnet.public_subnet.id
-#     assign_public_ip = true
-#   }
+  create_vnic_details {
+    subnet_id = oci_core_subnet.public_subnet.id
+    assign_public_ip = true
+  }
 
-#   source_details {
-#     source_type = "image"
-#     source_id   = data.oci_core_images.oracle_linux_images.images[0]["id"]
-#   }
+  source_details {
+    source_type = "image"
+    source_id   = data.oci_core_images.oracle_linux_images.images[0]["id"]
+  }
 
-#   metadata = {
-#     ssh_authorized_keys = var.ssh_public_key
-#   }
-# }
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+  }
+}
 
-# resource "oci_core_instance" "apache" {
-#   compartment_id = var.compartment_ocid
-#   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
-#   shape = "VM.Standard.E2.1.Micro"
-#   display_name = "apache-server"
+resource "oci_core_instance" "apache" {
+  compartment_id = var.compartment_ocid
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  shape = "VM.Standard.E2.1.Micro"
+  display_name = "apache-server"
 
-#   create_vnic_details {
-#     subnet_id = oci_core_subnet.public_subnet.id
-#     assign_public_ip = true
-#   }
+  create_vnic_details {
+    subnet_id = oci_core_subnet.public_subnet.id
+    assign_public_ip = true
+  }
 
-#   source_details {
-#     source_type = "image"
-#     source_id   = data.oci_core_images.oracle_linux_images.images[0]["id"]
-#   }
+  source_details {
+    source_type = "image"
+    source_id   = data.oci_core_images.oracle_linux_images.images[0]["id"]
+  }
 
-#   metadata = {
-#     ssh_authorized_keys = var.ssh_public_key
-#   }
-# }
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+  }
+}
 
 data "oci_identity_availability_domains" "ads" {
   compartment_id = var.tenancy_ocid
