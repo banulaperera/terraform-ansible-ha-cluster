@@ -18,7 +18,7 @@ resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
 
   tags = {
-    name = "ha-vpc"
+    Name = "ha-vpc"
   }
 }
 
@@ -26,7 +26,7 @@ resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    name = "ha-igw"
+    Name = "ha-igw"
   }
 }
 
@@ -37,17 +37,7 @@ resource "aws_subnet" "public_subnet" {
   availability_zone       = var.aws_ab
 
   tags = {
-    name = "public-subnet"
-  }
-}
-
-resource "aws_subnet" "private_subnet" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr
-  availability_zone = var.aws_ab
-
-  tags = {
-    name = "private-subnet"
+    Name = "public-subnet"
   }
 }
 
@@ -60,7 +50,7 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = {
-    name = "public-route"
+    Name = "public-route"
   }
 }
 
@@ -69,11 +59,13 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-resource "aws_security_group" "haproxy_sg" {
-  name   = "haproxy-sg"
-  vpc_id = aws_vpc.main.id
+resource "aws_security_group" "web_sg" {
+  name        = "web-security-group"
+  description = "Allow web and SSH traffic"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -81,6 +73,7 @@ resource "aws_security_group" "haproxy_sg" {
   }
 
   ingress {
+    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -88,6 +81,7 @@ resource "aws_security_group" "haproxy_sg" {
   }
 
   ingress {
+    description = "HAProxy Stats"
     from_port   = 8404
     to_port     = 8404
     protocol    = "tcp"
@@ -95,6 +89,7 @@ resource "aws_security_group" "haproxy_sg" {
   }
 
   ingress {
+    description = "HAProxy Metrics"
     from_port   = 8405
     to_port     = 8405
     protocol    = "tcp"
@@ -107,31 +102,9 @@ resource "aws_security_group" "haproxy_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-resource "aws_security_group" "backend_sg" {
-  name   = "backend-sg"
-  vpc_id = aws_vpc.main.id
-
-  ingress {
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.haproxy_sg.id]
-  }
-
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.haproxy_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = {
+    Name = "web-sg"
   }
 }
 
@@ -139,38 +112,55 @@ resource "aws_instance" "haproxy" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public_subnet.id
-  vpc_security_group_ids      = [aws_security_group.haproxy_sg.id]
+  vpc_security_group_ids      = [aws_security_group.web_sg.id]
   associate_public_ip_address = true
   key_name                    = var.key_name
   availability_zone           = var.aws_ab
+  user_data                   = <<-EOF
+                                #!/bin/bash
+                                apt update -y
+                                apt install -y python3
+                                EOF
 
   tags = {
-    name = "haproxy-server"
+    Name = "haproxy-server"
   }
 }
 
 resource "aws_instance" "nginx" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.private_subnet.id
-  vpc_security_group_ids = [aws_security_group.backend_sg.id]
-  key_name               = var.key_name
-  availability_zone      = var.aws_ab
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public_subnet.id
+  vpc_security_group_ids      = [aws_security_group.web_sg.id]
+  associate_public_ip_address = true
+  key_name                    = var.key_name
+  availability_zone           = var.aws_ab
+  user_data                   = <<-EOF
+                                #!/bin/bash
+                                apt update -y
+                                apt install -y python3
+                                EOF
 
   tags = {
-    name = "nginx-server"
+    Name = "nginx-server"
   }
 }
 
 resource "aws_instance" "apache" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.private_subnet.id
-  vpc_security_group_ids = [aws_security_group.backend_sg.id]
-  key_name               = var.key_name
-  availability_zone      = var.aws_ab
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public_subnet.id
+  vpc_security_group_ids      = [aws_security_group.web_sg.id]
+  associate_public_ip_address = true
+  key_name                    = var.key_name
+  availability_zone           = var.aws_ab
+  user_data                   = <<-EOF
+                                #!/bin/bash
+                                apt update -y
+                                apt install -y python3
+                                EOF
 
   tags = {
-    name = "apache-server"
+    Name = "apache-server"
   }
 }
