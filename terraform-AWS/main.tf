@@ -14,11 +14,6 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"]
 }
 
-resource "aws_key_pair" "deployer" {
-  key_name   = var.key_name
-  public_key = file(var.public_key_path)
-}
-
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
 
@@ -39,6 +34,7 @@ resource "aws_subnet" "public_subnet" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
   map_public_ip_on_launch = true
+  availability_zone       = var.aws_ab
 
   tags = {
     name = "public-subnet"
@@ -46,8 +42,9 @@ resource "aws_subnet" "public_subnet" {
 }
 
 resource "aws_subnet" "private_subnet" {
-  vpc_id     = aws_vpc.main.id
-  cidr_block = var.public_subnet_cidr
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_cidr
+  availability_zone = var.aws_ab
 
   tags = {
     name = "private-subnet"
@@ -60,6 +57,10 @@ resource "aws_route_table" "public_rt" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.gw.id
+  }
+
+  tags = {
+    name = "public-route"
   }
 }
 
@@ -140,7 +141,8 @@ resource "aws_instance" "haproxy" {
   subnet_id                   = aws_subnet.public_subnet.id
   vpc_security_group_ids      = [aws_security_group.haproxy_sg.id]
   associate_public_ip_address = true
-  key_name                    = aws_key_pair.deployer.key_name
+  key_name                    = var.key_name
+  availability_zone           = var.aws_ab
 
   tags = {
     name = "haproxy-server"
@@ -152,7 +154,8 @@ resource "aws_instance" "nginx" {
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.private_subnet.id
   vpc_security_group_ids = [aws_security_group.backend_sg.id]
-  key_name               = aws_key_pair.deployer.key_name
+  key_name               = var.key_name
+  availability_zone      = var.aws_ab
 
   tags = {
     name = "nginx-server"
@@ -164,7 +167,8 @@ resource "aws_instance" "apache" {
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.private_subnet.id
   vpc_security_group_ids = [aws_security_group.backend_sg.id]
-  key_name               = aws_key_pair.deployer.key_name
+  key_name               = var.key_name
+  availability_zone      = var.aws_ab
 
   tags = {
     name = "apache-server"
