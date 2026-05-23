@@ -1,0 +1,16 @@
+---
+- hosts: nginx
+  become: yes
+  roles:
+    - nginx
+
+- hosts: apache
+  become: yes
+  roles:
+    - apache
+
+- hosts: haproxy
+  become: yes
+  roles:
+    - haproxy
+...
