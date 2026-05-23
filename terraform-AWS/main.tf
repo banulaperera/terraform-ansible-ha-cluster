@@ -20,10 +20,10 @@ resource "aws_key_pair" "deployer" {
 }
 
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
+  cidr_block = var.vpc_cidr
 
   tags = {
-    Name = "ha-vpc"
+    name = "ha-vpc"
   }
 }
 
@@ -31,17 +31,26 @@ resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "ha-igw"
+    name = "ha-igw"
   }
 }
 
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public_subnet" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
+  cidr_block              = var.public_subnet_cidr
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "public-subnet"
+    name = "public-subnet"
+  }
+}
+
+resource "aws_subnet" "private_subnet" {
+  vpc_id     = aws_vpc.main.id
+  cidr_block = var.public_subnet_cidr
+
+  tags = {
+    name = "private-subnet"
   }
 }
 
@@ -55,17 +64,15 @@ resource "aws_route_table" "public_rt" {
 }
 
 resource "aws_route_table_association" "public_assoc" {
-  subnet_id      = aws_subnet.public.id
+  subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
 
-resource "aws_security_group" "web_sg" {
-  name        = "web-security-group"
-  description = "Allow web and SSH traffic"
-  vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "haproxy_sg" {
+  name   = "haproxy-sg"
+  vpc_id = aws_vpc.main.id
 
   ingress {
-    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -73,7 +80,6 @@ resource "aws_security_group" "web_sg" {
   }
 
   ingress {
-    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -81,7 +87,6 @@ resource "aws_security_group" "web_sg" {
   }
 
   ingress {
-    description = "HAProxy Stats"
     from_port   = 8404
     to_port     = 8404
     protocol    = "tcp"
@@ -89,7 +94,6 @@ resource "aws_security_group" "web_sg" {
   }
 
   ingress {
-    description = "HAProxy Metrics"
     from_port   = 8405
     to_port     = 8405
     protocol    = "tcp"
@@ -102,47 +106,67 @@ resource "aws_security_group" "web_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
-  tags = {
-    Name = "web-sg"
+resource "aws_security_group" "backend_sg" {
+  name   = "backend-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.haproxy_sg.id]
+  }
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.haproxy_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
 resource "aws_instance" "haproxy" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.web_sg.id]
+  subnet_id                   = aws_subnet.public_subnet.id
+  vpc_security_group_ids      = [aws_security_group.haproxy_sg.id]
   associate_public_ip_address = true
   key_name                    = aws_key_pair.deployer.key_name
 
   tags = {
-    Name = "haproxy-server"
+    name = "haproxy-server"
   }
 }
 
 resource "aws_instance" "nginx" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.web_sg.id]
-  associate_public_ip_address = true
-  key_name                    = aws_key_pair.deployer.key_name
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.private_subnet.id
+  vpc_security_group_ids = [aws_security_group.backend_sg.id]
+  key_name               = aws_key_pair.deployer.key_name
 
   tags = {
-    Name = "nginx-server"
+    name = "nginx-server"
   }
 }
 
 resource "aws_instance" "apache" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.web_sg.id]
-  associate_public_ip_address = true
-  key_name                    = aws_key_pair.deployer.key_name
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.private_subnet.id
+  vpc_security_group_ids = [aws_security_group.backend_sg.id]
+  key_name               = aws_key_pair.deployer.key_name
 
   tags = {
-    Name = "apache-server"
+    name = "apache-server"
   }
 }
